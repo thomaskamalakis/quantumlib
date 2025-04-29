@@ -79,6 +79,14 @@ def to_dec(b):
     return int(''.join(map(str, b)), 2)
 
 def CNOT(n, mc, mt):
+    """
+    Generalization of a CNOT gate with n input and output qubits
+    The qubit indexed by mc is the control bit
+    The qubit indexed by mt is the target it
+    All other qubits go through unchanged
+    Standard CNOT corresponds to n=2, mc=0, mt=1
+    Returns the matrix for the CNOT gate operation
+    """
     sz = 2 ** n
     C = np.zeros([sz,sz])
     
@@ -106,8 +114,44 @@ def composite(*args):
             D[n, m] = mul 
     return D
               
-def Toffoli():
-    return diag(I, I, I, X)     
+def Toffoli(t = 2, N = 3):
+    sz = 2 ** N
+    T = np.zeros([sz,sz])
+    for n in range(sz):
+        bm = bin_array(n, N)
+        if np.sum(bm) == N:
+            bm[t] = 0
+        elif ( np.sum(bm) == N-1 ) and (bm[t] == 0):
+            bm[t] = 1
+        m = to_dec(bm)
+        T[n,m] = 1
+    return T
     
+def swap(a=1, b=2, N=3):
+    sz = 2 ** N
+    S = np.zeros([sz,sz])
+    for n in range(sz):
+        bm = bin_array(n, N)
+        v = bm[a]
+        bm[a] = bm[b]
+        bm[b] = v
+        m = to_dec(bm)
+        S[n,m] = 1
+    return S
+    
+def Friedkin():
+    N = 3
+    sz = 2 ** N
+    F = np.zeros([sz,sz])
+    for n in range(sz):
+        bm = bin_array(n,N)
+        if bm[0] == 1:
+            v = bm[1]
+            bm[1] = bm[2]
+            bm[2] = v
+        m = to_dec(bm)
+        F[n,m] = 1
+    return F
+        
     
     
