@@ -1,4 +1,5 @@
 import numpy as np
+from numbertheory.numlib import gcd
 
 X = np.array([[0, 1],[1, 0]])
 Y = np.array([[0, -1j],[1j, 0]])
@@ -82,6 +83,9 @@ def calcU(a,b,c,d):
 
             
 def AXBXC(U):
+    """
+    Decompose a controlled C(U) using unitary and controlled-not gate
+    """
     a, b, c, d = angles(U)
     A = np.matmul( rotZ(b), rotY(c/2) )
     B = np.matmul( rotY(-c/2), rotZ( -(d+b)/2) )
@@ -136,8 +140,8 @@ def CNOT(n, mc, mt):
             bn[mt] = 1 - bn[mt]
         q = to_dec(bn)
         C[p,q] = 1
-    return C
-            
+    return C   
+
 
 def basis_states(n):
     """
@@ -164,7 +168,22 @@ def composite(*args):
                 mul *= args[i][ bn[i], bm[i] ]
             D[n, m] = mul 
     return D
-              
+ 
+def generalized_U(U, n, mt):
+    """
+    Return the matrix describing operating the 2x2 unitary matrix U on an array of n qubits 
+    and where U only acts on the qubit indexed by mt
+    """
+    M = []
+    I = np.eye(2)
+    for i in range(n):
+        if mt == i:
+            M.append(U)
+        else:
+            M.append(I)
+            
+    return composite(*M)
+             
 def Toffoli(t = 2, N = 3):
     sz = 2 ** N
     T = np.zeros([sz,sz])
@@ -296,10 +315,52 @@ def gray_count(initial,final):
             elements.append( s )
     
     return elements
-          
+
+def qft(xm):
+    """
+    Perform quantum Fourier transform
+    """
+    N = xm.size
+    return 1/np.sqrt(N) * np.fft.fft(xm)
+
+def iqft(xm):
+    """
+    Perform inverse quantum Fourier transform
+    """
+    N = xm.size
+    return np.sqrt(N) * np.fft.fft(xm)
+
+def modU(xm, x, N):
+    """
+    Estimate the quantum state such that
+    modU|y> = |xy mod N>    
+    """
     
+    zm = np.zeros(xm.size)
     
+    if x >= N:
+        raise ValueError('the second argument must be smaller than the third.')
         
+    if gcd(x, N) != 1:
+        raise ValueError('the second argument must be co-prime with the third.')
     
+    for y in range(xm.size):
+        
+        i = np.mod(x * y, N, dtype=int)
+        zm[i] = xm[y]
     
+    return zm
+
+class quantum_register:
+    
+    def __init__(self, sz = 1):
+        self.combs = 2 ** sz
+        self.sz = sz
+        self.x = np.zeros( self.combs )
+        indxs = np.arange(self.combs, dtype = int)        
+        self.b = [
+            np.binary_repr(el, width = sz) for el in indxs
+            ]
+        self.x[0] = 1
+        
     
