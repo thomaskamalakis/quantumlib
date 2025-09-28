@@ -12,6 +12,57 @@ epi4 = np.exp(1j*np.pi/4)
 T = np.array([[1, 0],[0, epi4]])
 S = np.array([[1, 0],[0, 1j]])
 
+def number_to_str(n, decimals=2, tol = 1e-3):
+    nr = np.real(n)
+    ni = np.imag(n)
+    fmt = f'%.{decimals}f'
+    
+    if (nr == 0) and (ni == 0):
+        return '0'
+    if np.abs(nr) >  np.abs(ni) / tol:
+        ni = 0
+    elif np.abs(ni) >  np.abs(nr) / tol:
+        nr = 0
+  
+    if nr == 0:
+        s = (fmt + 'j') % ni
+    elif ni == 0:
+        s = fmt % nr
+    elif ni > 0:
+        s = (fmt + '+' + fmt + 'j') % (nr,ni)
+    elif ni < 0:
+        s = (fmt + '-' + fmt + 'j') % (nr,np.abs(ni))
+           
+    return s
+        
+    
+def array_to_latex(M, decimals = 2):
+    rows, cols = M.shape
+    text = r"""
+    \begin{bmatrix}
+    """
+    
+    for m in range(rows):
+        row_text = ''
+        for n in range(cols):
+            element = M[m,n]
+            row_text += number_to_str(element)
+            if n != cols - 1:
+                row_text += ' & '
+            else:
+                row_text += ' \\\\  '
+        
+        text += row_text
+                
+            
+            
+    text += r"""
+    \end{bmatrix}
+    """
+    
+    return text
+        
+    
 def funm(M, func):
     """
     Returns the result of func over the diagonalizable matrix M
@@ -59,6 +110,68 @@ def rotn(n, t):
     ny = n[1]
     nz = n[2]
     return I * np.cos(t/2) - 1j * np.sin(t/2) * (nx * X + ny * Y + nz * Z)
+
+def Ry(phi):
+    cos = np.cos(phi)
+    sin = np.sin(phi)
+    return np.array([
+        [cos, 0 ,  sin],
+        [0,   1,    0],
+        [-sin, 0,   cos]
+        ])
+
+def Rx(phi):
+    cos = np.cos(phi)
+    sin = np.sin(phi)
+    return np.array([
+        [1, 0 ,  0],
+        [0, cos, -sin],
+        [0, sin,   cos]
+        ])
+
+def Rz(phi):
+    cos = np.cos(phi)
+    sin = np.sin(phi)
+    return np.array([
+        [cos, -sin ,  0],
+        [sin, cos, 0],
+        [0, 0, 1]
+        ])
+
+def spherical_to_cartesian(r, theta, phi):
+    
+    x = r * np.sin(theta) * np.cos(phi)
+    y = r * np.sin(theta) * np.sin(phi)
+    z = r * np.cos(theta)
+    return x, y, z
+
+def cartesian_to_spherical(x, y, z):
+    r = np.sqrt(x**2 + y**2 + z**2)
+    if r == 0:
+        theta = 0.0
+        phi = 0.0
+    else:
+        theta = np.acos(z / r)
+        phi = np.atan2(y, x)
+        if phi < 0:
+            phi += 2 * np.pi  # normalize to [0, 2π)
+    return r, theta, phi
+
+def rotation_matrix(n, theta):
+    
+    n = np.asarray(n, dtype=float)
+    n = n / np.linalg.norm(n)   # ensure unit vector
+    nx, ny, nz = n
+
+    cos_t = np.cos(theta)
+    sin_t = np.sin(theta)
+
+    R = np.array([
+        [cos_t + nx*nx*(1-cos_t),     nx*ny*(1-cos_t) - nz*sin_t, nx*nz*(1-cos_t) + ny*sin_t],
+        [ny*nx*(1-cos_t) + nz*sin_t, cos_t + ny*ny*(1-cos_t),     ny*nz*(1-cos_t) - nx*sin_t],
+        [nz*nx*(1-cos_t) - ny*sin_t, nz*ny*(1-cos_t) + nx*sin_t, cos_t + nz*nz*(1-cos_t)]
+    ])
+    return R
 
 def angles(U):
     u11 = U[0,0]
@@ -279,7 +392,6 @@ def level2submatrices(U):
     
     for m in range(2, M):
         new_matrices, U_tmp = level2submatrices_1layer(U_tmp)
-        print(U_tmp)
         if aug >=1 :
             I = np.eye(aug, dtype=complex)
             new_matrices = [diag(I, u) for u in new_matrices]
@@ -353,14 +465,96 @@ def modU(xm, x, N):
 
 class quantum_register:
     
-    def __init__(self, sz = 1):
-        self.combs = 2 ** sz
-        self.sz = sz
+    def __init__(self, sz = None, contents = None):
+        if contents:
+            self.sz = len( list( contents.keys() )[0]  )
+        else:
+            self.sz = sz
+            
+        self.combs = 2 ** self.sz
         self.x = np.zeros( self.combs )
         indxs = np.arange(self.combs, dtype = int)        
         self.b = [
-            np.binary_repr(el, width = sz) for el in indxs
+            np.binary_repr(el, width = self.sz) for el in indxs
             ]
-        self.x[0] = 1
+        self.bs = [ bin_str_to_array(b) for b in self.b ]
+        if contents:
+            for c, v in contents.items():
+                i = int(c, 2)
+                self.x[i] = v           
+        else:
+            self.x[0] = 1
+
+        self.normalize()
+        
+    def contents(self):
+        return {c : self.x[int(c,2)] for c in self.b}
+    
+    def normalize(self):
+        """
+        Normalize the amplitudes so that the sum of all probabilities is 1.
+        """
+        N = np.sum(np.abs(self.x) ** 2)
+        self.x = self.x / np.sqrt(N)
+            
+    def probability(self, fun):
+        """
+        Estimate the probabilities for the callable described by fun to be true
+        """
+        prob = 0
+        for i, b in enumerate(self.bs):
+            if fun(b):
+                prob += np.abs( self.x[i] ) ** 2
+        return prob
+    
+    def filter(self, fun):
+        for i, b in enumerate(self.bs):
+            if not fun(b):
+                self.x[i] = 0
+        self.normalize()
+             
+    def measure_qubit(self, q, outcome = None):
+        """
+        Measure the qth qubit of the register
+        If outcome parameter is used, then the corresponding result is 
+        obtained. Otherwise the outcome is determined randomly
+        based on the contents of the register
+        """
+        lq_1 = lambda x: x[q] == 1
+        lq_0 = lambda x: x[q] == 0
+        
+        P1 = self.probability(lq_1)
+        
+        c = np.random.rand()
+        if c<=P1:
+            self.filter(lq_1)
+            return 1
+        else:
+            self.filter(lq_0)
+            return 0
+        
+    def tensor_product(self,q):
+        """
+        Estimate the tensor product with another quantum register
+        """
+        contents = {}
+        for b1 in self.b:
+            for b2 in q.b:
+                i1 = int(b1,2)
+                i2 = int(b2,2)                
+                b = b1+b2
+                contents[b] = self.x[i1]  * q.x[i2]
+        
+        return quantum_register(contents = contents)
+    
+    
+
+            
+            
+        
+        
+    
+    
+        
         
     
