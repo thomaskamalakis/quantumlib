@@ -19,10 +19,11 @@ def Rarb(o, m):
     return I * sp.cos(o/2) -1j * A * sp.sin(o/2)
 
 phi, theta = sp.symbols(r'\phi, \theta', real=True)
-mx = sp.sin(theta) * sp.cos(phi)
-my = sp.sin(theta) * sp.sin(phi)
-mz = sp.cos(theta)
+# mx = sp.sin(theta) * sp.cos(phi)
+# my = sp.sin(theta) * sp.sin(phi)
+# mz = sp.cos(theta)
 
+mx, my, mz = sp.symbols('m_x, m_y, m_z')
 m = [mx, my, mz]
 
 b,c,d = sp.symbols('b, c, d', real=True)

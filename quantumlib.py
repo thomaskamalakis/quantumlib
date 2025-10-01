@@ -490,7 +490,7 @@ def decompU(U):
     """
     nx and ny must be chosen so that the phase of -(ny+j*nx) corresponds to U2[1,0]
     """
-    if np.real(U2[1,0]) * ny < 0:
+    if np.real(U2[0,1]) * ny > 0:
         ny = -ny
         nx = -nx
     return phi, q, [nx, ny, nz]
